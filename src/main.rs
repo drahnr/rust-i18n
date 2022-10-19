@@ -9,18 +9,18 @@ mod config;
 #[macro_use]
 extern crate serde_derive;
 
-fn main() -> Result<(), Error> {
-    let extract_command = SubCommand::with_name("i18n")
-        .about(
-            r#"---------------------------------------
+const ABOUT: &str = r#"
 Rust I18n command for help you simply to extract all untranslated texts from soruce code.
 
 It will iter all Rust files in and extract all untranslated texts that used `t!` macro.
 And then generate a YAML file and merge for existing texts.
 
 https://github.com/longbridgeapp/rust-i18n
-"#,
-        )
+"#;
+
+fn main() -> Result<(), Error> {
+    let extract_command = SubCommand::with_name("i18n")
+        .about(ABOUT)
         .version(clap::crate_version!())
         .arg(
             Arg::with_name("source")

@@ -72,15 +72,15 @@ use std::sync::Mutex;
 
 pub use rust_i18n_macro::i18n;
 
-static CURRENT_LOCALE: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::from("en")));
+static CURRENT_LOCALE: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("en"));
 
 pub fn set_locale(locale: &str) {
     let mut current_locale = CURRENT_LOCALE.lock().unwrap();
     *current_locale = locale.to_string();
 }
 
-pub fn locale() -> String {
-    CURRENT_LOCALE.lock().unwrap().to_string()
+pub fn locale() -> &'static str {
+    CURRENT_LOCALE.lock().unwrap()
 }
 
 /// Get I18n text
@@ -102,7 +102,7 @@ pub fn locale() -> String {
 macro_rules! t {
     // t!("foo")
     ($key:expr) => {
-        crate::translate(rust_i18n::locale().as_str(), $key)
+        crate::translate(rust_i18n::locale(), $key)
     };
 
     // t!("foo", locale="en")
@@ -124,22 +124,11 @@ macro_rules! t {
     // t!("foo {} {}", "bar", "baz")
     ($key:expr, $($var_name:tt = $var_val:expr),+) => {
         {
-            let mut message = crate::translate(rust_i18n::locale().as_str(), $key);
+            let mut message = crate::translate(rust_i18n::locale(), $key);
             $(
                 message = message.replace(concat!("%{", stringify!($var_name), "}"), $var_val);
             )+
             message
         }
     };
-}
-
-#[macro_export]
-macro_rules! map {
-    {$($key:expr => $value:expr),+} => {{
-        let mut m = std::collections::HashMap::new();
-        $(
-            m.insert($key, $value);
-        )+
-        m
-    }};
 }

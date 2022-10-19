@@ -1,76 +1,80 @@
 use quote::quote;
-use rust_i18n_support::{is_debug, load_locales};
+use rust_i18n_support::load_locales;
+use syn::{punctuated::Punctuated, token::Token, Expr};
 use std::collections::HashMap;
 
-#[derive(Debug)]
-struct Option {
-    locales_path: String,
+// Avoid repeated path reads
+const TRANSLATIONS: &[u8] = include_bytes!("foo-bar-baz");
+
+enum FormatArg {
+    Ident(Ident),
+    Expr(Expr),
+    IdentEqExpr{ alias: Ident, eq: Token![=], value: Expr },
 }
 
-impl syn::parse::Parse for Option {
-    fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
-        let locales_path = input.parse::<syn::LitStr>()?.value();
-
-        Ok(Self { locales_path })
-    }
+struct FormatArgs {
+    fmt_str: syn::Literal,
+    maybe_comma: Option<Token![,]>,
+    maybe_args: Punctuated<FormatArg, Token![,]>,
 }
 
-/// Init I18n translations.
-///
-/// This will load all translations by glob `**/*.yml` from the given path.
-///
-/// ```ignore
-/// i18n!("locales");
-/// ```
-#[proc_macro]
-pub fn i18n(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let option = match syn::parse::<Option>(input) {
-        Ok(input) => input,
-        Err(err) => return err.to_compile_error().into(),
-    };
+fn format_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::TokenStream> {
+    let support = support_crate_path();
+    let FormatArgs { fmt_str, maybe_comma: _, maybe_args } = syn::parse2(input)?;
 
-    // CARGO_MANIFEST_DIR is current build directory
-    let cargo_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is empty");
-    let current_dir = std::path::PathBuf::from(cargo_dir);
-    let locales_path = current_dir.join(option.locales_path);
+    // must be (orig_text -> (language -> translation_text)* )*
+    let translations = rust_i18n_support::deserialize(TRANSLATIONS).expect("You must have a build.rs that does the fixins");
+    
+    // Will cause quite a bit of load during compilation for applications with many
+    // invocations
+    let translations: HashMap<(String, String), String> = translations.get(args.fmt_str).ok_or_else(|| syn::Error::new(Span::call_site(), "No translation for string")) {
 
-    let translations = load_locales(&locales_path.display().to_string(), |_| false);
-    let code = generate_code(translations);
-
-    if is_debug() {
-        println!("{}", code.to_string());
-        // panic!("Debug mode, show codegen.");
-    }
-
-    code.into()
-}
-
-fn generate_code(translations: HashMap<String, String>) -> proc_macro2::TokenStream {
-    let mut locales = Vec::<proc_macro2::TokenStream>::new();
-
-    translations.iter().for_each(|(k, v)| {
-        let k = k.to_string();
-        let v = v.to_string();
-
-        locales.push(quote! {
-            #k => #v,
-        });
-    });
-
-    // result
-    quote! {
-        static LOCALES: once_cell::sync::Lazy<std::collections::HashMap<&'static str, &'static str>> = once_cell::sync::Lazy::new(|| rust_i18n::map! [
-            #(#locales)*
-            "" => ""
-        ]);
-
-
-        pub fn translate(locale: &str, key: &str) -> String {
-            let key = format!("{}.{}", locale, key);
-            match LOCALES.get(key.as_str()) {
-                Some(value) => value.to_string(),
-                None => key.to_string(),
-            }
+    let language = translations.keys().map(|(orig: _, locale)| locale);
+    let translation = translations.value();
+    Ok(quote!(
+        match #support::locale() {
+           #(
+                #language => ::std::format!(#translation, #maybe_args,),
+            )*
         }
-    }
+    ))
+}
+
+
+fn format_inner(input: proc_macro2::TokenStream, ) -> syn::Result<proc_macro2::TokenStream> {
+    let support = support_crate_path();
+    let FormatArgs { fmt_str, maybe_comma: _, maybe_args } = syn::parse2(input)?;
+
+    // must be (orig_text -> (language -> translation_text)* )*
+    let orig2translations = deserialize(TRANSLATIONS);
+    
+    // Will cause quite a bit of load during compilation for applications with many
+    // invocations
+    let translations: HashMap<&'static str, &'static str> = translations.get(args.fmt_str).ok_or_else(|| syn::Error::new(Span::call_site(), "No translation for string")) {
+
+    let language = translations.keys();
+    let translation = translations.value();
+    Ok(quote!(
+        match #support::locale() {
+           #(#language => ::std::eprintln!(#translation, #maybe_args,)),*
+        }
+    ))
+}
+
+#[proc_macro]
+pub fn format_t(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    format_inner(proc_macro2::TokenStream::from(input)).unwrap_or_else(|e| e.to_compile_error()).into()
+}
+
+fn support_crate_path() -> syn::Path {
+    use proc_macro_crate as pmc;
+    let found_crate = pmc::crate_name("rust-i18n").expect("rust-i18n must be present in `Cargo.toml`, but it's not");
+
+    syn::Path::from(match found_crate {
+        pmc::FoundCrate::Itself => quote!( crate ),
+        pmc::FoundCrate::Name(name) => {
+            let ident = Ident::new(&name, Span::call_site());
+            quote!( #ident )
+        }
+    })
 }

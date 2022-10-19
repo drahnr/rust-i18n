@@ -7,8 +7,31 @@ pub type Locale = String;
 pub type Value = serde_json::Value;
 pub type Translations = HashMap<Locale, Value>;
 
-pub fn is_debug() -> bool {
-    std::env::var("RUST_I18N_DEBUG").unwrap_or_else(|_| "0".to_string()) == "1"
+/// Init I18n translations from `build.rs`.
+///
+/// This will load all translations by glob `**/*.yml` from the
+/// given path and prepare a file to be included in the compiled proc macro.
+pub fn load_from_dirs(locale_path: impl AsRef<std::path::Path>) -> Result<(), std::io::Error> {
+    let locales_path = current_dir.join(locale_path);
+
+    let translations = load_locales(&locales_path.display().to_string(), |_| false);
+    let translations = serialize(translations)?;
+    
+    std::fs::write("foo-bar-baz", translations)?;
+    
+    Ok(())
+}
+
+/// Optimize for proc-macro parsing ease, that's called 1 vs n times more often!
+pub type TranslationMap = HashMap<String, HashMap<Locale, String>>;
+ 
+pub fn deserialize(bytes: &[u8]) -> Result<TranslationMap, ()> {
+    todo!()
+}
+
+
+pub fn serialize(text2translations: TranslationMap) -> Result<Vec<u8>,()> {
+    todo!()
 }
 
 /// Merge JSON Values, merge b into a
@@ -27,22 +50,18 @@ pub fn merge_value(a: &mut Value, b: &Value) {
 
 // Load locales into flatten key, value HashMap
 pub fn load_locales<F: Fn(&str) -> bool>(
-    locales_path: &str,
+    locales_path: &std::path::Path,
     ignore_if: F,
-) -> HashMap<String, String> {
-    let mut translations: Translations = HashMap::new();
+) -> TranslationMap {
+    let mut trans_map: Translations = HashMap::new();
 
-    let path_pattern = format!("{}/**/*.yml", locales_path);
+    let path_pattern = format!("{}/**/*.yml", locales_path.display());
 
-    if is_debug() {
-        println!("cargo:i18n-locale={}", &path_pattern);
-    }
+    println!("cargo:i18n-locale={}", &path_pattern);
 
     for entry in glob(&path_pattern).expect("Failed to read glob pattern") {
         let entry = entry.unwrap();
-        if is_debug() {
-            println!("cargo:i18n-load={}", &entry.display());
-        }
+        println!("cargo:i18n-load={}", &entry.display());
 
         if ignore_if(&entry.display().to_string()) {
             continue;
@@ -59,18 +78,18 @@ pub fn load_locales<F: Fn(&str) -> bool>(
         let trs: Translations =
             serde_yaml::from_str(&content).expect("Invalid YAML format, parse error");
 
-        trs.into_iter().for_each(|(k, new_value)| {
-            translations
-                .entry(k)
-                .and_modify(|old_value| merge_value(old_value, &new_value))
+        trs.into_iter().for_each(|(locale, translations)| {
+            trans_map
+                .entry(locale)
+                .and_modify(|translations_old| merge_value(translations_old, &translations))
                 .or_insert(new_value);
         });
     }
 
-    let mut locale_vars = HashMap::<String, String>::new();
-    translations.iter().for_each(|(locale, trs)| {
+    let mut locale_vars = HashMap::new();
+    trans_map.iter().for_each(|(locale, trs)| {
         let new_vars = extract_vars(locale.as_str(), &trs);
-        locale_vars.extend(new_vars);
+        locale_vars.entry(orig_text).or_default().and_modify(|x| { x.extend(new_vars); });;
     });
 
     locale_vars

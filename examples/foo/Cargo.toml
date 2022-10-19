@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [dependencies]
 once_cell = "1.10.0"
-rust-i18n = {path = "../../../rust-i18n"}
+rust-i18n = { path = "../../../rust-i18n" }
 
 [package.metadata.i18n]
 available-locales = ["en", "zh-CN"]
