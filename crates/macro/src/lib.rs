@@ -1,59 +1,105 @@
-use quote::quote;
+use quote::{quote, ToTokens};
 use rust_i18n_support::load_locales;
-use syn::{punctuated::Punctuated, token::Token, Expr};
+use syn::{punctuated::Punctuated, Expr, parse::Parse};
 use std::collections::HashMap;
+use proc_macro2::Ident;
+use proc_macro2::Span;
+use syn::punctuated::*;
+use syn::Token;
 
 // Avoid repeated path reads
-const TRANSLATIONS: &[u8] = include_bytes!("foo-bar-baz");
+// const TRANSLATIONS: &[u8] = include_bytes!("../");
 
 enum FormatArg {
     Ident(Ident),
-    Expr(Expr),
+    Expr(syn::Expr),
     IdentEqExpr{ alias: Ident, eq: Token![=], value: Expr },
 }
 
+impl Parse for FormatArg {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(syn::Ident) {
+            let alias = input.parse::<syn::Ident>()?;
+            if lookahead.peek(Token![=]) {
+                let eq = input.parse::<Token![=]>()?;
+                let value = input.parse::<syn::Expr>()?;
+                Ok(Self::IdentEqExpr{ alias, eq, value })
+            } else {
+                Ok(Self::Ident(alias))
+            }
+        } else {
+            input.parse::<syn::Expr>().map(Self::Expr)
+        }
+    }
+}
+
+impl ToTokens for FormatArg {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        match self {
+            Self::Ident(ident) => tokens.extend(ident.to_token_stream()),
+            Self::Expr(expr) => tokens.extend(expr.to_token_stream()),
+            Self::IdentEqExpr{ alias, eq: _, value} => tokens.extend(quote!{ #alias = #value }),
+        }
+    }
+}
+
 struct FormatArgs {
-    fmt_str: syn::Literal,
+    fmt_str: syn::LitStr,
     maybe_comma: Option<Token![,]>,
     maybe_args: Punctuated<FormatArg, Token![,]>,
 }
 
-fn format_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::TokenStream> {
-    let support = support_crate_path();
-    let FormatArgs { fmt_str, maybe_comma: _, maybe_args } = syn::parse2(input)?;
+use syn::Lit;
 
-    // must be (orig_text -> (language -> translation_text)* )*
-    let translations = rust_i18n_support::deserialize(TRANSLATIONS).expect("You must have a build.rs that does the fixins");
-    
-    // Will cause quite a bit of load during compilation for applications with many
-    // invocations
-    let translations: HashMap<(String, String), String> = translations.get(args.fmt_str).ok_or_else(|| syn::Error::new(Span::call_site(), "No translation for string")) {
-
-    let language = translations.keys().map(|(orig: _, locale)| locale);
-    let translation = translations.value();
-    Ok(quote!(
-        match #support::locale() {
-           #(
-                #language => ::std::format!(#translation, #maybe_args,),
-            )*
+impl Parse for FormatArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let lit = input.parse::<syn::Lit>()?;
+        let fmt_str = match lit {
+            syn::Lit::Str(alias) => alias,
+            other => return Err(syn::Error::new(other.span(), "Expected a literal str for format arg but found..."))
+        };
+        let lookahead = input.lookahead1();
+        if lookahead.peek(Token![,]) {
+            let maybe_comma = Some(input.parse::<Token![,]>()?);
+            let maybe_args = Punctuated::<FormatArg, Token![,]>::parse_terminated(&input)?;
+            Ok(Self{ fmt_str, maybe_comma, maybe_args })
+        } else {
+            Ok(Self { fmt_str, maybe_comma: None, maybe_args: Punctuated::new()})
         }
-    ))
+    }
 }
 
+impl ToTokens for FormatArgs {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let FormatArgs {
+            fmt_str : ref fmt_str,
+            maybe_comma : ref maybe_comma,
+            maybe_args : ref maybe_args,
+        } = self;
+        tokens.extend(fmt_str.to_token_stream());
+        if !maybe_args.is_empty() {
+          tokens.extend(maybe_args.to_token_stream());  
+        }
+    }
+}
 
 fn format_inner(input: proc_macro2::TokenStream, ) -> syn::Result<proc_macro2::TokenStream> {
     let support = support_crate_path();
     let FormatArgs { fmt_str, maybe_comma: _, maybe_args } = syn::parse2(input)?;
 
     // must be (orig_text -> (language -> translation_text)* )*
-    let orig2translations = deserialize(TRANSLATIONS);
+    
+    // use fs_err as fs;
+    
+    let orig2translations = rust_i18n_support::deserialize("{foo}".as_bytes()).unwrap();
     
     // Will cause quite a bit of load during compilation for applications with many
     // invocations
-    let translations: HashMap<&'static str, &'static str> = translations.get(args.fmt_str).ok_or_else(|| syn::Error::new(Span::call_site(), "No translation for string")) {
+    let translations: &HashMap<String, String> = orig2translations.get(fmt_str.value().as_str()).ok_or_else(|| syn::Error::new(Span::call_site(), "No translation for string"))?;
 
     let language = translations.keys();
-    let translation = translations.value();
+    let translation = translations.values();
     Ok(quote!(
         match #support::locale() {
            #(#language => ::std::eprintln!(#translation, #maybe_args,)),*
@@ -70,11 +116,11 @@ fn support_crate_path() -> syn::Path {
     use proc_macro_crate as pmc;
     let found_crate = pmc::crate_name("rust-i18n").expect("rust-i18n must be present in `Cargo.toml`, but it's not");
 
-    syn::Path::from(match found_crate {
-        pmc::FoundCrate::Itself => quote!( crate ),
+    let ident = match found_crate {
+        pmc::FoundCrate::Itself => Ident::new("crate", Span::call_site()),
         pmc::FoundCrate::Name(name) => {
-            let ident = Ident::new(&name, Span::call_site());
-            quote!( #ident )
+            Ident::new(&name, Span::call_site())
         }
-    })
+    };
+    syn::Path::from(ident)
 }

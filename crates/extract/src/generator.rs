@@ -15,7 +15,7 @@ pub fn generate<'a, P: AsRef<Path>>(
     // TODO.en.yml
     let filename = format!("TODO.{}.yml", locale);
     // ~/work/my-project/locales
-    let output_path = output.as_ref().display().to_string();
+    let output_path = output.as_ref().to_owned();
 
     let ignore_file = |fname: &str| fname.ends_with(&filename);
     let old_translations = load_locales(&output_path, ignore_file);
