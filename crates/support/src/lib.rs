@@ -14,6 +14,8 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("Failed to serialize / deserialize")]
     SerDe,
+    #[error(transparent)]
+    Postcard(#[from] postcard::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -36,12 +38,13 @@ pub fn load_from_dirs(locale_path: impl AsRef<std::path::Path>) -> Result<()> {
 pub type TranslationMap = HashMap<String, HashMap<Locale, String>>;
  
 pub fn deserialize(bytes: &[u8]) -> Result<TranslationMap> {
-    todo!()
+    let tmap: TranslationMap = postcard::from_bytes(bytes)?;
+    Ok(tmap)
 }
 
-
 pub fn serialize(text2translations: TranslationMap) -> Result<Vec<u8>> {
-    todo!()
+    let bytes = postcard::to_allocvec(&text2translations)?;
+    Ok(bytes)
 }
 
 /// Merge JSON Values, merge b into a

@@ -1,3 +1,8 @@
+//! Parse the content of `format_t!` arguments
+//! 
+//! Required, to filter out `a.b.c` style paths
+//! and avoid erroring for no good reason.
+
 use quote::{quote, ToTokens};
 use rust_i18n_support::load_locales;
 use syn::{punctuated::Punctuated, Expr, parse::Parse};
@@ -6,9 +11,6 @@ use proc_macro2::Ident;
 use proc_macro2::Span;
 use syn::punctuated::*;
 use syn::Token;
-
-// Avoid repeated path reads
-// const TRANSLATIONS: &[u8] = include_bytes!("../");
 
 enum FormatArg {
     Ident(Ident),
@@ -88,23 +90,26 @@ fn format_inner(input: proc_macro2::TokenStream, ) -> syn::Result<proc_macro2::T
     let support = support_crate_path();
     let FormatArgs { fmt_str, maybe_comma: _, maybe_args } = syn::parse2(input)?;
 
-    // must be (orig_text -> (language -> translation_text)* )*
-    
-    // use fs_err as fs;
-    
-    let orig2translations = rust_i18n_support::deserialize("{foo}".as_bytes()).unwrap();
+    // must be (a.b.c -> (language -> translation_text)* )*
+
+    let orig2translations = 
+        rust_i18n_support::load_locales(
+            &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales"),
+            |_| false,
+        );
     
     // Will cause quite a bit of load during compilation for applications with many
-    // invocations
+    // invocations, but whatever...
     let translations: &HashMap<String, String> = orig2translations.get(fmt_str.value().as_str()).ok_or_else(|| syn::Error::new(Span::call_site(), "No translation for string"))?;
 
     let language = translations.keys();
     let translation = translations.values();
-    Ok(quote!(
+    let ts = quote!(
         match #support::locale() {
-           #(#language => ::std::eprintln!(#translation, #maybe_args,)),*
+            #( #language => ::std::format!( #translation, #maybe_args,)),*
         }
-    ))
+    );
+    Ok(ts)
 }
 
 #[proc_macro]
