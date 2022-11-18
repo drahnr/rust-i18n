@@ -70,17 +70,17 @@ rust_i18n::locale();
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-pub use rust_i18n_macro::i18n;
+pub use rust_i18n_macro::format_t;
 
-static CURRENT_LOCALE: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("en"));
+static CURRENT_LOCALE: Lazy<Mutex<&'static str>> = Lazy::new(|| Mutex::new("en"));
 
 pub fn set_locale(locale: &str) {
     let mut current_locale = CURRENT_LOCALE.lock().unwrap();
-    *current_locale = locale.to_string();
+    *current_locale = Box::leak::<'static>(Box::new(locale.to_owned()));
 }
 
 pub fn locale() -> &'static str {
-    CURRENT_LOCALE.lock().unwrap()
+    &CURRENT_LOCALE.lock().unwrap()
 }
 
 /// Get I18n text

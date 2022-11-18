@@ -1,9 +1,9 @@
-use rust_i18n::t;
+use rust_i18n::format_t;
 
 mod info;
 
 rust_i18n::i18n!("locales");
 
-pub fn t(key: &str) -> String {
-    t!(key)
+pub fn f(key: &str) -> String {
+    tormat_t!(key)
 }

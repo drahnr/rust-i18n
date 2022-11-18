@@ -1,3 +1,13 @@
+[workspace]
+members = [
+    "crates/extract",
+    "crates/macro",
+    "crates/support",
+    "crates/build",
+]
+
+
+
 [package]
 authors = ["Jason Lee <huacnlee@gmail.com>"]
 build = "build.rs"
