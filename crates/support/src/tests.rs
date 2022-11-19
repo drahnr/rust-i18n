@@ -11,7 +11,7 @@ fn full_roundtrip() {
     let dir = test_locale_dir();
     prepare(&dir).unwrap();
 
-    dbg!(super::load_locales(&dir).unwrap());
+    dbg!(super::locales_yaml_files_to_translation_map(&dir).unwrap());
 }
 
 #[test]

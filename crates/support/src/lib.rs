@@ -30,7 +30,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// given path and prepare a file to be included in the compiled proc macro.
 pub fn load_from_dirs(locale_dir: impl AsRef<std::path::Path>) -> Result<()> {
     let locale_path = locale_dir.as_ref();
-    let translations = load_locales(locale_path)?;
+    let translations = locales_yaml_files_to_translation_map(locale_path)?;
     let translations = serialize(translations)?;
 
     fs::write("foo-bar-baz", translations)?;
@@ -75,7 +75,7 @@ pub fn merge_value(a: &mut Value, b: &Value) {
 }
 
 // Load locales into flatten key,value HashMap
-pub fn load_locales(locales_dir: &std::path::Path) -> Result<TranslationMap> {
+pub fn locales_yaml_files_to_translation_map(locales_dir: &std::path::Path) -> Result<TranslationMap> {
     let mut trans_map = Translations::new();
 
     let path_pattern = format!("{}/**/*.yml", locales_dir.display());
@@ -84,7 +84,7 @@ pub fn load_locales(locales_dir: &std::path::Path) -> Result<TranslationMap> {
 
     let paths = glob(&path_pattern).expect("Failed to read glob pattern");
     for maybe_path in paths {
-        let path = if let Ok(path) = maybe_path {
+        let path = if let Ok(path) = dbg!(maybe_path) {
             path
         } else {
             continue;
@@ -105,27 +105,34 @@ pub fn load_locales(locales_dir: &std::path::Path) -> Result<TranslationMap> {
 
         eprintln!("cargo:warning: foo: -- {:?}", &trs);
 
-        trs.into_iter().for_each(|(locale, translations)| {
+        trs.into_iter().for_each(|(tp, translations)| {
             trans_map
-                .entry(locale)
+                .entry(tp)
                 .and_modify(|translations_old| merge_value(translations_old, &translations))
-                .or_insert(Value::Null);
+                .or_insert(translations);
         });
     }
 
-    let mut locale_vars = TranslationMap::new();
+    let mut tp2trans_per_locale = TranslationMap::new();
     trans_map.iter().for_each(|(locale, trs)| {
         let new_vars = dbg!(extract_vars(locale.as_str(), dbg!(&trs)));
-        locale_vars
-            .entry(locale.to_string())
-            .or_default()
-            .extend(new_vars.into_iter());
+        let new_vars_iter = new_vars.into_iter().filter_map(|(k,v)| {
+            k.strip_prefix(&(locale.to_owned() + ".")).map(move |k| (k.to_string(),v))
+        });
+        for (tp, translation) in new_vars_iter {
+            tp2trans_per_locale
+                .entry(tp)
+                .or_default()
+                .insert(locale.to_owned(), translation);
+        }
     });
 
-    Ok(locale_vars)
+    Ok(tp2trans_per_locale)
 }
 
 /// Find the value based on it's path aka prefix `a.b.c`
+/// 
+/// Returns a `prefix`:`value` set.
 pub fn extract_vars(prefix: &str, trs: &Value) -> HashMap<String, String> {
     let mut v = HashMap::<String, String>::new();
     let prefix = prefix.to_string();
@@ -163,9 +170,9 @@ pub fn extract_vars(prefix: &str, trs: &Value) -> HashMap<String, String> {
 pub fn prepare(locale_dir: impl AsRef<std::path::Path>) -> Result<()> {
     let locales_dir = locale_dir.as_ref();
 
-    let translations = load_locales(&locales_dir)?;
+    let translations = locales_yaml_files_to_translation_map(&locales_dir)?;
 
-    let serialized = self::serialize(translations)?;
+    let serialized = self::serialize(dbg!(translations))?;
     let mut f = fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -174,5 +181,6 @@ pub fn prepare(locale_dir: impl AsRef<std::path::Path>) -> Result<()> {
     f.write_all(serialized.as_slice())?;
     Ok(())
 }
+
 #[cfg(test)]
 mod tests;

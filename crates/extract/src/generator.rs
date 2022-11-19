@@ -1,6 +1,6 @@
 use crate::extractor::Message;
 use fs_err as fs;
-use rust_i18n_support::load_locales;
+use rust_i18n_support::locales_yaml_files_to_translation_map;
 use rust_i18n_support::Error;
 use rust_i18n_support::Result;
 use rust_i18n_support::Translations;
@@ -20,7 +20,7 @@ pub fn generate<'a, P: AsRef<Path>>(
     // ~/work/my-project/locales
     let output_path = output.as_ref().to_owned();
 
-    let old_translations = load_locales(&output_path)?;
+    let old_translations = locales_yaml_files_to_translation_map(&output_path)?;
 
     let mut new_translations: Translations = HashMap::new();
     let mut new_values: HashMap<String, String> = HashMap::new();
