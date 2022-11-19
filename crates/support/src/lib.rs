@@ -1,12 +1,13 @@
+use fs::File;
+use fs_err as fs;
 use glob::glob;
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::prelude::*;
+use std::io::Write;
 
 pub type Locale = String;
 pub type Value = serde_json::Value;
 pub type Translations = HashMap<Locale, Value>;
-
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -16,6 +17,9 @@ pub enum Error {
     SerDe,
     #[error(transparent)]
     Postcard(#[from] postcard::Error),
+
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -24,19 +28,25 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// This will load all translations by glob `**/*.yml` from the
 /// given path and prepare a file to be included in the compiled proc macro.
-pub fn load_from_dirs(locale_path: impl AsRef<std::path::Path>) -> Result<()> {
-    let locale_path = locale_path.as_ref();
-    let translations = load_locales(locale_path, |_| false);
+pub fn load_from_dirs(locale_dir: impl AsRef<std::path::Path>) -> Result<()> {
+    let locale_path = locale_dir.as_ref();
+    let translations = load_locales(locale_path)?;
     let translations = serialize(translations)?;
-    
-    std::fs::write("foo-bar-baz", translations)?;
-    
+
+    fs::write("foo-bar-baz", translations)?;
+
     Ok(())
 }
 
-/// Optimize for proc-macro parsing ease, that's called 1 vs n times more often!
-pub type TranslationMap = HashMap<String, HashMap<Locale, String>>;
- 
+/// Path to an translation item
+///
+/// f the for `a.b.c` analogous to `json` addressing.
+pub type TranslationPath = String;
+
+/// Optimize for proc-macro parsing ease,
+/// that's called 1 vs n times more often!
+pub type TranslationMap = HashMap<TranslationPath, HashMap<Locale, String>>;
+
 pub fn deserialize(bytes: &[u8]) -> Result<TranslationMap> {
     let tmap: TranslationMap = postcard::from_bytes(bytes)?;
     Ok(tmap)
@@ -48,7 +58,7 @@ pub fn serialize(text2translations: TranslationMap) -> Result<Vec<u8>> {
 }
 
 /// Merge JSON Values, merge b into a
-/// 
+///
 /// Overrides values of `a` with values of `b`
 /// and recurses into all objects.
 pub fn merge_value(a: &mut Value, b: &Value) {
@@ -64,14 +74,11 @@ pub fn merge_value(a: &mut Value, b: &Value) {
     }
 }
 
-// Load locales into flatten key, value HashMap
-pub fn load_locales<F: Fn(&str) -> bool>(
-    locales_path: &std::path::Path,
-    ignore_if: F,
-) -> TranslationMap {
-    let mut trans_map: Translations = HashMap::new();
+// Load locales into flatten key,value HashMap
+pub fn load_locales(locales_dir: &std::path::Path) -> Result<TranslationMap> {
+    let mut trans_map = Translations::new();
 
-    let path_pattern = format!("{}/**/*.yml", locales_path.display());
+    let path_pattern = format!("{}/**/*.yml", locales_dir.display());
 
     println!("cargo:i18n-locale={}", &path_pattern);
 
@@ -83,10 +90,6 @@ pub fn load_locales<F: Fn(&str) -> bool>(
             continue;
         };
         println!("cargo:i18n-load={}", &path.display());
-
-        if ignore_if(&path.display().to_string()) {
-            continue;
-        }
 
         let file = File::open(path).expect("Failed to open the YAML file");
         let mut reader = std::io::BufReader::new(file);
@@ -100,12 +103,12 @@ pub fn load_locales<F: Fn(&str) -> bool>(
         let trs: Translations =
             dbg!(serde_yaml::from_str(&content)).expect("Invalid YAML format, parse error");
 
+        eprintln!("cargo:warning: foo: -- {:?}", &trs);
+
         trs.into_iter().for_each(|(locale, translations)| {
             trans_map
                 .entry(locale)
-                .and_modify(|translations_old| {
-                    merge_value(translations_old, &translations)
-                })
+                .and_modify(|translations_old| merge_value(translations_old, &translations))
                 .or_insert(Value::Null);
         });
     }
@@ -113,11 +116,13 @@ pub fn load_locales<F: Fn(&str) -> bool>(
     let mut locale_vars = TranslationMap::new();
     trans_map.iter().for_each(|(locale, trs)| {
         let new_vars = dbg!(extract_vars(locale.as_str(), dbg!(&trs)));
-        unreachable!("what and why?");
-        // locale_vars.entry(orig_text).or_default().extend(new_vars);
+        locale_vars
+            .entry(locale.to_string())
+            .or_default()
+            .extend(new_vars.into_iter());
     });
 
-    locale_vars
+    Ok(locale_vars)
 }
 
 /// Find the value based on it's path aka prefix `a.b.c`
@@ -151,3 +156,23 @@ pub fn extract_vars(prefix: &str, trs: &Value) -> HashMap<String, String> {
 
     v
 }
+
+/// Init I18n translations.
+///
+/// This will load all translations by glob `**/*.yml` from the given path and prepare a file to be included in the compiled proc macro.
+pub fn prepare(locale_dir: impl AsRef<std::path::Path>) -> Result<()> {
+    let locales_dir = locale_dir.as_ref();
+
+    let translations = load_locales(&locales_dir)?;
+
+    let serialized = self::serialize(translations)?;
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(locales_dir.join("foo-bar-baz"))?;
+    f.write_all(serialized.as_slice())?;
+    Ok(())
+}
+#[cfg(test)]
+mod tests;

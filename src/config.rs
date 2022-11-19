@@ -2,8 +2,8 @@
 //! to load and inspect `Cargo.toml` metadata.
 //!
 //! See `Manifest::from_slice`.
+use fs_err as fs;
 use itertools::Itertools;
-use std::fs;
 use std::io;
 use std::io::Read;
 use std::path::Path;

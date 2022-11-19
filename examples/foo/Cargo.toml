@@ -7,12 +7,13 @@ private = true
 [dependencies]
 once_cell = "1.10.0"
 rust-i18n = { path = "../.." }
+fs-err = "2.9"
 
 [dev-dependencies]
-rust-i18n-build = { path = "../../crates/build" }
+rust-i18n-support = { path = "../../crates/support" }
 
 [build-dependencies]
-rust-i18n-build = { path = "../../crates/build" }
+rust-i18n-support = { path = "../../crates/support" }
 
 [package.metadata.i18n]
 available-locales = ["en", "zh-CN"]

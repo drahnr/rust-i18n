@@ -1,26 +1,20 @@
 [workspace]
-members = [
-    "crates/extract",
-    "crates/macro",
-    "crates/support",
-    "crates/build",
-]
-
+members = ["crates/extract", "crates/macro", "crates/support"]
 
 
 [package]
+name = "rust-i18n"
+version = "0.6.2-alpha.0"
 authors = ["Jason Lee <huacnlee@gmail.com>"]
-build = "build.rs"
-categories = ["localization", "internationalization"]
 description = "Rust I18n is use Rust codegen for load YAML file storage translations on compile time, and give you a t! macro for simply get translation texts."
+categories = ["localization", "internationalization"]
 edition = "2021"
 exclude = ["crates", "tests"]
 keywords = ["i18n", "yml", "localization", "internationalization"]
 license = "MIT"
-name = "rust-i18n"
 readme = "README.md"
 repository = "https://github.com/longbridgeapp/rust-i18n"
-version = "0.6.2-alpha.0"
+build = "build.rs"
 
 [dependencies]
 anyhow = { version = "1", optional = true }
@@ -33,6 +27,7 @@ rust-i18n-macro = { path = "./crates/macro", version = ">=0.4" }
 serde = "1"
 serde_derive = "1"
 toml = "0.5.8"
+fs-err = "2.9"
 
 [dev-dependencies]
 foo = { path = "examples/foo" }

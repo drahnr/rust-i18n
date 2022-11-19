@@ -1,5 +1,6 @@
 use anyhow::Error;
-use std::fs::File;
+use fs::File;
+use fs_err as fs;
 use std::io::Read;
 use std::path::PathBuf;
 
