@@ -2,14 +2,14 @@
 
 [![CI](https://github.com/longbridgeapp/rust-i18n/actions/workflows/ci.yml/badge.svg)](https://github.com/longbridgeapp/rust-i18n/actions/workflows/ci.yml) [![Docs](https://docs.rs/rust-i18n/badge.svg)](https://docs.rs/rust-i18n/) [![Crates.io](https://img.shields.io/crates/v/rust-i18n.svg)](https://crates.io/crates/rust-i18n)
 
-Rust I18n is a crate for loading localized text from a set of YAML mapping files. The mappings are converted into data readable by Rust programs at compile time, and then localized text can be loaded by simply calling the provided `t!` macro.
+Rust I18n is a crate for loading localized text from a set of YAML mapping files. The mappings are converted into data readable by Rust programs at compile time, and then localized text can be loaded by simply calling the provided `format_t!` macro.
 
 The API of this crate is inspired by [ruby-i18n](https://github.com/ruby-i18n/i18n) and [Rails I18n](https://guides.rubyonrails.org/i18n.html).
 
 ## Features
 
 - Codegen on compile time for includes translations into binary.
-- Global `t!` macro for loading localized text in everywhere.
+- Global `format_t!` macro for loading localized text in everywhere.
 - Use YAML for mapping localized text, and support mutiple YAML files merging.
 - `cargo i18n` Command line tool for checking and extract untranslated texts into YAML files.
 
@@ -44,7 +44,7 @@ rust-i18n = "0"
 Load macro and init translations in `lib.rs`
 
 ```rs
-// Load I18n macro, for allow you use `t!` macro in anywhere.
+// Load I18n macro, for allow you use `format_t!` macro in anywhere.
 #[macro_use]
 extern crate rust_i18n;
 
@@ -55,13 +55,13 @@ i18n!("locales");
 Or you can import by use directly:
 
 ```rs
-// You must import in each files when you wants use `t!` macro.
-use rust_i18n::t;
+// You must import in each files when you wants use `format_t!` macro.
+use rust_i18n::format_t;
 
 rust_i18n::i18n!("locales");
 
 fn main() {
-    println!("{}", t!("hello"));
+    println!("{}", format_t!("hello"));
 }
 ```
 
@@ -99,31 +99,31 @@ zh-CN:
 
 ### Loading Localized Strings in Rust
 
-Import the `t!` macro from this crate into your current scope:
+Import the `format_t!` macro from this crate into your current scope:
 
 ```rs
-use rust_i18n::t;
+use rust_i18n::format_t;
 ```
 
 Then, simply use it wherever a localized string is needed:
 
 ```rs
-t!("hello");
+format_t!("hello");
 // => "Hello world"
 
-t!("hello", locale = "zh-CN");
+format_t!("hello", locale = "zh-CN");
 // => "你好世界"
 
-t!("messages.hello", name = "world");
+format_t!("messages.hello", name = "world");
 // => "Hello, world"
 
-t!("messages.hello", locale = "zh-CN", name = "Jason");
+format_t!("messages.hello", locale = "zh-CN", name = "Jason");
 // => "你好, Jason"
 ```
 
 ### Setting and Getting the Global Locale
 
-You can use `rust_i18n::set_locale` to set the global locale at runtime, so that you don't have to specify the locale on each `t!` invocation.
+You can use `rust_i18n::set_locale` to set the global locale at runtime, so that you don't have to specify the locale on each `format_t!` invocation.
 
 ```rs
 rust_i18n::set_locale("zh-CN");
@@ -176,7 +176,7 @@ cargo-i18n 0.5.0
 ---------------------------------------
 Rust I18n command for help you simply to extract all untranslated texts from soruce code.
 
-It will iter all Rust files in and extract all untranslated texts that used `t!` macro.
+It will iter all Rust files in and extract all untranslated texts that used `format_t!` macro.
 And then generate a YAML file and merge for existing texts.
 
 https://github.com/longbridgeapp/rust-i18n

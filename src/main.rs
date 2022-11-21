@@ -12,7 +12,7 @@ extern crate serde_derive;
 const ABOUT: &str = r#"
 Rust I18n command for help you simply to extract all untranslated texts from soruce code.
 
-It will iter all Rust files in and extract all untranslated texts that used `t!` macro.
+It will iter all Rust files in and extract all untranslated texts that used `format_t!` macro.
 And then generate a YAML file and merge for existing texts.
 
 https://github.com/longbridgeapp/rust-i18n
