@@ -120,27 +120,20 @@ impl Parse for FormatArgs {
                 ))
             }
         };
-        println!("pre look ahead 1");
         let lookahead = input.lookahead1();
         
-        println!("pre look ahead 2");
-        if dbg!(lookahead.peek(Token![,])) {
-            println!("pre look ahead 3");
+        if lookahead.peek(Token![,]) {
             let comma = input.parse::<Token![,]>()?;
-            println!("pre look ahead 4");
             
             let maybe_comma = Some(comma);
             let maybe_args = Punctuated::<FormatArg, Token![,]>::parse_terminated(&input)?;
             
-            println!("pre look ahead 5");
             Ok(Self {
                 fmt_str,
                 maybe_comma,
                 maybe_args,
             })
         } else {
-            println!("pre look ahead B");
-            
             Ok(Self {
                 fmt_str,
                 maybe_comma: None,
@@ -173,7 +166,7 @@ impl fmt::Debug for FormatArgs {
         if let Some(_comma) = self.maybe_comma {
             f.write_str(",")?;
             for pair in self.maybe_args.pairs() {
-                write!(f, "{:?},", dbg!(pair.value()))?;
+                write!(f, "{:?},", pair.value())?;
             }
         }
         Ok(())
@@ -186,7 +179,7 @@ fn format_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::Tok
         fmt_str,
         maybe_comma: _,
         maybe_args,
-    } = dbg!(syn::parse2(input))?;
+    } = syn::parse2(input)?;
 
     // must be (a.b.c -> (language_2_letter_code -> translation_text)* )*
 
@@ -195,12 +188,11 @@ fn format_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::Tok
     } else {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales")
     };
-    dbg!(path.display());
+    path.display();
     eprintln!("Reading {}", path.display());
     let bytes = fs::read(&path).unwrap();
     let tp2trans_per_locale = rust_i18n_support::deserialize(&bytes[..]).unwrap();
 
-    dbg!(&tp2trans_per_locale);
     eprintln!("Read {:?}", &tp2trans_per_locale);
     // Will cause quite a bit of load during compilation for applications with many
     // invocations, but whatever...
@@ -220,17 +212,17 @@ fn format_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::Tok
     let ts = quote!(
         match #support::locale() {
             #( #language => { ::std::format!( #translation, #maybe_args ) }, )*
-            _ => { "<missing translation>".to_owned() },
+            _ => { "<missing translation>".to_owned() }, // TODO FIXME, use a default language
         }
     );
     println!("{s}", s = ts.to_string());
-    Ok(dbg!(ts))
+    Ok(ts)
 }
 
 #[proc_macro]
 pub fn format_t(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    format_inner(dbg!(proc_macro2::TokenStream::from(input)))
-        .unwrap_or_else(|e| dbg!(e).to_compile_error())
+    format_inner(proc_macro2::TokenStream::from(input))
+        .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }
 

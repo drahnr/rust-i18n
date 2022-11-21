@@ -5,9 +5,9 @@ use super::*;
 macro_rules! gen_fmtarg_test {
     (pass: $x:expr) => {
         {
-            let fmt_args:FormatArg = syn::parse2(dbg!(quote::quote!{
+            let fmt_args:FormatArg = syn::parse2(quote::quote!{
                 $x
-            })).expect("FormatArg must parse. qed");
+            }).expect("FormatArg must parse. qed");
             dbg!(fmt_args)
         }
     };
@@ -16,25 +16,27 @@ macro_rules! gen_fmtarg_test {
 macro_rules! gen_fmtargs_test {
     (pass: $fmt:literal $(,$x:expr)* $(,)?) => {
         {
-            let fmt_args:FormatArgs = syn::parse2(dbg!(quote::quote!{
+            let fmt_args:FormatArgs = syn::parse2(quote::quote!{
                 $fmt $(, $x)*
-            })).expect("FormatArgs must parse. qed");
-            dbg!(fmt_args)
+            }).expect("FormatArgs must parse. qed");
+            fmt_args
         }
     };
 }
 
 macro_rules! roundtrip {
     ($ty:ty; $setup:expr ) => {
-        let seed: $ty = dbg!($setup);
+        let seed: $ty = $setup;
+        println!("{:?}", &seed);
+        let seed_str = format!("{:?}", &seed);
         let ts = dbg!(seed.into_token_stream());
-        let _reconstructed: $ty = dbg!(syn::parse2::<$ty>(ts))
+        let reconstructed: $ty = syn::parse2::<$ty>(ts)
             .expect("Must parse, was ok before");
         
-        // assert_eq!(
-        //     format!("{:?}", seed),
-        //     format!("{:?}", reconstructed)
-        // );
+        assert_eq!(
+            seed_str,
+            format!("{:?}", reconstructed)
+        );
     };
 }
 

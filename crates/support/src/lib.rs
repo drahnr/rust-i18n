@@ -84,7 +84,7 @@ pub fn locales_yaml_files_to_translation_map(locales_dir: &std::path::Path) -> R
 
     let paths = glob(&path_pattern).expect("Failed to read glob pattern");
     for maybe_path in paths {
-        let path = if let Ok(path) = dbg!(maybe_path) {
+        let path = if let Ok(path) = maybe_path {
             path
         } else {
             continue;
@@ -101,7 +101,7 @@ pub fn locales_yaml_files_to_translation_map(locales_dir: &std::path::Path) -> R
 
         // All translation items per language
         let trs: Translations =
-            dbg!(serde_yaml::from_str(&content)).expect("Invalid YAML format, parse error");
+            serde_yaml::from_str(&content).expect("Invalid YAML format, parse error");
 
         eprintln!("cargo:warning: foo: -- {:?}", &trs);
 
@@ -115,7 +115,7 @@ pub fn locales_yaml_files_to_translation_map(locales_dir: &std::path::Path) -> R
 
     let mut tp2trans_per_locale = TranslationMap::new();
     trans_map.iter().for_each(|(locale, trs)| {
-        let new_vars = dbg!(extract_vars(locale.as_str(), dbg!(&trs)));
+        let new_vars = extract_vars(locale.as_str(), &trs);
         let new_vars_iter = new_vars.into_iter().filter_map(|(k,v)| {
             k.strip_prefix(&(locale.to_owned() + ".")).map(move |k| (k.to_string(),v))
         });
@@ -172,7 +172,7 @@ pub fn prepare(locale_dir: impl AsRef<std::path::Path>) -> Result<()> {
 
     let translations = locales_yaml_files_to_translation_map(&locales_dir)?;
 
-    let serialized = self::serialize(dbg!(translations))?;
+    let serialized = self::serialize(translations)?;
     let mut f = fs::OpenOptions::new()
         .create(true)
         .write(true)
