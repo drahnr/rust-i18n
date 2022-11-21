@@ -20,6 +20,9 @@ pub enum Error {
 
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Yaml(#[from] serde_yaml::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -74,8 +77,55 @@ pub fn merge_value(a: &mut Value, b: &Value) {
     }
 }
 
+fn extract_yaml_content(
+    yaml_content: impl AsRef<str>,
+    trans_map: &mut HashMap<TranslationPath, serde_json::Value>,
+) -> Result<()> {
+    // All translation items per language
+    let trs: Translations = serde_yaml::from_str(yaml_content.as_ref())?;
+
+    eprintln!("cargo:warning: foo: -- {:?}", &trs);
+
+    trs.into_iter().for_each(|(tp, translations)| {
+        trans_map
+            .entry(tp)
+            .and_modify(|translations_old| merge_value(translations_old, &translations))
+            .or_insert(translations);
+    });
+    Ok(())
+}
+
+fn trans_map_voodoo(trans_map: HashMap<TranslationPath, serde_json::Value>) -> TranslationMap {
+    let mut tp2trans_per_locale = TranslationMap::new();
+
+    // let mut locale_vars = HashMap::<String, String>::new();
+    // translations.iter().for_each(|(locale, trs)| {
+    //     let new_vars = extract_vars(locale.as_str(), &trs);
+    //     locale_vars.extend(new_vars);
+    // });
+
+    // locale_vars
+
+    trans_map.into_iter().for_each(|(ref locale, trs)| {
+        let new_vars = extract_vars(locale.as_str(), &trs);
+        let new_vars_iter = new_vars.into_iter().filter_map(|(k, v)| {
+            k.strip_prefix(&(locale.to_owned() + "."))
+                .map(move |k| (k.to_string(), v))
+        });
+        for (tp, translation) in new_vars_iter {
+            tp2trans_per_locale
+                .entry(tp)
+                .or_default()
+                .insert(locale.clone(), translation);
+        }
+    });
+    tp2trans_per_locale
+}
+
 // Load locales into flatten key,value HashMap
-pub fn locales_yaml_files_to_translation_map(locales_dir: &std::path::Path) -> Result<TranslationMap> {
+pub fn locales_yaml_files_to_translation_map(
+    locales_dir: &std::path::Path,
+) -> Result<TranslationMap> {
     let mut trans_map = Translations::new();
 
     let path_pattern = format!("{}/**/*.yml", locales_dir.display());
@@ -95,43 +145,17 @@ pub fn locales_yaml_files_to_translation_map(locales_dir: &std::path::Path) -> R
         let mut reader = std::io::BufReader::new(file);
         let mut content = String::new();
 
-        reader
-            .read_to_string(&mut content)
-            .expect("Read YAML file failed.");
-
-        // All translation items per language
-        let trs: Translations =
-            serde_yaml::from_str(&content).expect("Invalid YAML format, parse error");
-
-        eprintln!("cargo:warning: foo: -- {:?}", &trs);
-
-        trs.into_iter().for_each(|(tp, translations)| {
-            trans_map
-                .entry(tp)
-                .and_modify(|translations_old| merge_value(translations_old, &translations))
-                .or_insert(translations);
-        });
+        reader.read_to_string(&mut content)?;
+        extract_yaml_content(content, &mut trans_map)?;
     }
 
-    let mut tp2trans_per_locale = TranslationMap::new();
-    trans_map.iter().for_each(|(locale, trs)| {
-        let new_vars = extract_vars(locale.as_str(), &trs);
-        let new_vars_iter = new_vars.into_iter().filter_map(|(k,v)| {
-            k.strip_prefix(&(locale.to_owned() + ".")).map(move |k| (k.to_string(),v))
-        });
-        for (tp, translation) in new_vars_iter {
-            tp2trans_per_locale
-                .entry(tp)
-                .or_default()
-                .insert(locale.to_owned(), translation);
-        }
-    });
+    let tp2trans_per_locale = trans_map_voodoo(trans_map);
 
     Ok(tp2trans_per_locale)
 }
 
 /// Find the value based on it's path aka prefix `a.b.c`
-/// 
+///
 /// Returns a `prefix`:`value` set.
 pub fn extract_vars(prefix: &str, trs: &Value) -> HashMap<String, String> {
     let mut v = HashMap::<String, String>::new();

@@ -11,9 +11,8 @@ use std::collections::HashMap;
 use syn::Token;
 use syn::{parse::Parse, punctuated::Punctuated, Expr};
 
-
 /// A single argument as passed to `format!`
-/// 
+///
 /// Skips the initial literal string!
 enum FormatArg {
     AliasEqIdent {
@@ -30,7 +29,7 @@ enum FormatArg {
     },
     Ident {
         ident: Ident,
-    }
+    },
 }
 
 use std::fmt;
@@ -38,7 +37,7 @@ use std::fmt;
 impl fmt::Debug for FormatArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Ident{ident} => {
+            Self::Ident { ident } => {
                 write!(f, "{ident}")?;
             }
             Self::AliasEqIdent { alias, ident, .. } => {
@@ -47,9 +46,8 @@ impl fmt::Debug for FormatArg {
             Self::AliasEqExpr { alias, .. } => {
                 write!(f, "{alias} = <expr>")?;
             }
-
         }
-        
+
         Ok(())
     }
 }
@@ -62,18 +60,20 @@ impl syn::parse::Parse for FormatArg {
         let me = if lookahead.peek(Token![=]) {
             let eq = input.parse::<Token![=]>()?;
             let alias = ident;
-            
+
             if let Ok(ident) = input.parse::<Ident>() {
-                Self::AliasEqIdent {alias, eq, ident}
+                Self::AliasEqIdent { alias, eq, ident }
             } else {
                 let expr = input.parse::<Expr>().map_err(|_e| {
-                    syn::Error::new(input.span(), "Expected `Expr` after = since it's not an ident")
+                    syn::Error::new(
+                        input.span(),
+                        "Expected `Expr` after = since it's not an ident",
+                    )
                 })?;
-                Self::AliasEqExpr {alias, eq, expr}
+                Self::AliasEqExpr { alias, eq, expr }
             }
-            
         } else {
-            Self::Ident {ident}
+            Self::Ident { ident }
         };
         Ok(me)
     }
@@ -82,24 +82,15 @@ impl syn::parse::Parse for FormatArg {
 impl ToTokens for FormatArg {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            Self::Ident{ident} => tokens.extend(ident.to_token_stream()),
-            Self::AliasEqExpr {
-                alias,
-                eq,
-                expr,
-            } => tokens.extend(quote! { #alias #eq #expr }),
-            Self::AliasEqIdent {
-                alias,
-                eq,
-                ident,
-            } => tokens.extend(quote! { #alias #eq #ident }),
-
+            Self::Ident { ident } => tokens.extend(ident.to_token_stream()),
+            Self::AliasEqExpr { alias, eq, expr } => tokens.extend(quote! { #alias #eq #expr }),
+            Self::AliasEqIdent { alias, eq, ident } => tokens.extend(quote! { #alias #eq #ident }),
         }
-   }
+    }
 }
 
 /// All format arguments.
-/// 
+///
 /// Including the str literal.
 struct FormatArgs {
     fmt_str: syn::LitStr,
@@ -121,13 +112,13 @@ impl Parse for FormatArgs {
             }
         };
         let lookahead = input.lookahead1();
-        
+
         if lookahead.peek(Token![,]) {
             let comma = input.parse::<Token![,]>()?;
-            
+
             let maybe_comma = Some(comma);
             let maybe_args = Punctuated::<FormatArg, Token![,]>::parse_terminated(&input)?;
-            
+
             Ok(Self {
                 fmt_str,
                 maybe_comma,
@@ -198,14 +189,12 @@ fn format_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::Tok
     // invocations, but whatever...
     let tp = fmt_str.value();
     let tp = tp.as_str();
-    let translations: &HashMap<String, String> = tp2trans_per_locale
-        .get(tp)
-        .ok_or_else(|| {
-            syn::Error::new(
-                Span::call_site(),
-                format!("No translation for \"{tp}\" in {tp2trans_per_locale:?}"),
-            )
-        })?;
+    let translations: &HashMap<String, String> = tp2trans_per_locale.get(tp).ok_or_else(|| {
+        syn::Error::new(
+            Span::call_site(),
+            format!("No translation for \"{tp}\" in {tp2trans_per_locale:?}"),
+        )
+    })?;
 
     let language = translations.keys();
     let translation = translations.values();
