@@ -193,7 +193,7 @@ fn format_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::Tok
     })?;
 
     let language = translations.keys();
-    let translation = translations.values();
+    let translation = translations.values().map(|v| v.trim().to_owned());
     let ts = quote!(
         match #support::locale() {
             #( #language => { ::std::format!( #translation, #maybe_args ) }, )*
