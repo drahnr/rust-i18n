@@ -13,8 +13,10 @@ pub type Translations = HashMap<Locale, Value>;
 pub enum Error {
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
     #[error("Failed to serialize / deserialize")]
     SerDe,
+
     #[error(transparent)]
     Postcard(#[from] postcard::Error),
 

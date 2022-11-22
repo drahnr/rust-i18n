@@ -61,17 +61,13 @@ impl syn::parse::Parse for FormatArg {
             let eq = input.parse::<Token![=]>()?;
             let alias = ident;
 
-            if let Ok(ident) = input.parse::<Ident>() {
-                Self::AliasEqIdent { alias, eq, ident }
-            } else {
-                let expr = input.parse::<Expr>().map_err(|_e| {
-                    syn::Error::new(
-                        input.span(),
-                        "Expected `Expr` after = since it's not an ident",
-                    )
-                })?;
-                Self::AliasEqExpr { alias, eq, expr }
-            }
+            let expr = input.parse::<Expr>().map_err(|_e| {
+                syn::Error::new(
+                    input.span(),
+                    "Expected `Expr` after = since it's not an ident",
+                )
+            })?;
+            Self::AliasEqExpr { alias, eq, expr }
         } else {
             Self::Ident { ident }
         };
